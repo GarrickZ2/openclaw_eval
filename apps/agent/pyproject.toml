@@ -1,0 +1,16 @@
+[project]
+name = "pinch-agent"
+version = "0.1.0"
+description = "Minimal routed LangGraph agent for PinchBench cases"
+requires-python = ">=3.11"
+dependencies = ["langgraph>=0.2,<1", "pinch-router", "pyyaml>=6"]
+
+[tool.uv.sources]
+pinch-router = { path = "../router", editable = true }
+
+[project.scripts]
+pinch-agent = "pinch_agent.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"

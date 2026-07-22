@@ -1,4 +1,228 @@
-# OpenClaw Eval 使用手册
+# Router Lab / OpenClaw Eval 使用手册
+
+本仓库有两条独立的使用路径：
+
+1. **Router Lab Demo（本手册第一部分）**：用已训练的本地 Router 为 PinchBench Agent 的每一个模型步骤选择标签，实际调用配置好的 MiniMax M3，并在网页中实时查看路由、工具调用和结果。
+2. **OpenClaw Eval 离线流水线（第二部分）**：采集 trace、重放候选模型并由 judge 评分，用于后续训练 Router。
+
+以下所有命令默认在仓库根目录执行。
+
+---
+
+## A. Router Lab Demo
+
+### A.1 它会做什么
+
+```text
+浏览器选择 PinchBench case
+  → FastAPI 创建独立 run/workspace
+  → LangGraph Agent 的每个模型步骤调用本地 Router
+  → Router 输出预测标签、概率、质量/成本估计
+  → 本地配置中的 MiniMax M3 实际生成回复
+  → SSE 将路由、模型、工具和完成事件推到网页
+```
+
+Router 的**预测标签**和实际执行模型有意分开：当前 demo 中所有标签都映射到同一个 `MiniMax-M3` execution profile。页面会同时显示“Router chose …”和“executed by MiniMax-M3”。这让没有七个真实模型账户时仍能演示路由决策。
+
+### A.2 前置条件
+
+| 项目 | 建议版本 / 用途 |
+| --- | --- |
+| macOS 或 Linux | 本 demo 在 macOS 上的启动脚本会自动打开浏览器 |
+| Python | 3.11+；由 `uv` 管理虚拟环境 |
+| [uv](https://docs.astral.sh/uv/) | Python 包、环境和命令管理 |
+| Node.js + npm | Node.js 20+，用于 React/Vite 前端 |
+| MiniMax API Key | 用于真实的 `MiniMax-M3` 模型调用，会产生该账号的 API 用量 |
+
+先确认工具可用：
+
+```bash
+uv --version
+node --version
+npm --version
+```
+
+### A.3 准备 Router 模型资产（首次一次）
+
+Router 的权重不提交到 Git。将本地 `resource/` 中的参考资产复制到 Router 自己的运行目录；运行时不会 import 或依赖 `resource/`：
+
+```bash
+mkdir -p apps/router/var/assets
+
+cp -R resource/chinese_mobilebert_base_f2 \
+  apps/router/var/assets/chinese_mobilebert_base_f2
+
+cp resource/router_finetune/artifacts/v131_red_pools_clean_20260708_141739/pool_866_865_294_305_10000_10002_10003/seed_44/best_router_finetuned.pth \
+  apps/router/var/assets/best_router_finetuned.pth
+
+cp resource/router_finetune/artifacts/v131_red_pools_clean_20260708_141739/pool_866_865_294_305_10000_10002_10003/seed_44/runtime_model_representations.npz \
+  apps/router/var/assets/runtime_model_representations.npz
+```
+
+完成后应有：
+
+```text
+apps/router/var/assets/
+├── chinese_mobilebert_base_f2/
+├── best_router_finetuned.pth
+└── runtime_model_representations.npz
+```
+
+若这三个项目已存在，无需重复复制。`apps/router/var/` 被 Git 忽略。
+
+### A.4 配置 MiniMax（必须）
+
+复制模板，再仅在本机填写 key：
+
+```bash
+cp apps/router/config/models.example.json apps/router/config/models.json
+```
+
+在 `apps/router/config/models.json` 中找到：
+
+```json
+"execution_profiles": {
+  "minimax_m3": {
+    "endpoint": "https://api.minimax.io/v1/text/chatcompletion_v2",
+    "api_key": "PASTE_YOUR_MINIMAX_API_KEY_HERE",
+    "model_name": "MiniMax-M3",
+    "timeout_seconds": 120
+  }
+}
+```
+
+把占位的 `api_key` 改成真实 MiniMax key。demo 不读取环境变量；所有 label 到 base URL、model name 和 key 的映射都在这个本地 config 中。`models.json` 已被 Git 忽略，模板文件可以安全提交。不要把 key 粘贴到 issue、聊天记录或代码中。
+
+可按需调整：
+
+| 字段 | 作用 |
+| --- | --- |
+| `default_candidates` | 默认参与排序的 Router label；可删减为任意 checkpoint 已知标签的子集 |
+| `models[].execution_profile` | 每个预测 label 要使用的实际执行 profile；demo 默认都为 `minimax_m3` |
+| `timeout_seconds` | 单次 MiniMax 调用的超时秒数，默认 120 |
+
+### A.5 安装依赖（首次一次）
+
+最快路径只需同步 API 项目；它会通过 editable local package 引入 Agent 和 Router。前端由启动脚本自动安装，也可提前安装：
+
+```bash
+cd apps/api && uv sync && cd ../..
+cd apps/web && npm install && cd ../..
+```
+
+Router 是 CPU 推理，仍需要 PyTorch、Transformers 和权重，因此第一次 `uv sync` 可能较慢；demo 不要求 GPU。
+
+### A.6 一条命令启动
+
+```bash
+make demo
+```
+
+它会启动：
+
+| 服务 | 地址 | 作用 |
+| --- | --- | --- |
+| FastAPI | `http://127.0.0.1:8000` | case、run、history 与 SSE API |
+| Vite/React | `http://127.0.0.1:5173` | Router Lab 网页 |
+
+脚本会等待两个服务健康后自动打开浏览器。若浏览器没有自动打开，手动访问 `http://127.0.0.1:5173`。保持该终端运行；按 `Ctrl+C` 会同时停止前后端。
+
+开发时，API 会监控 `apps/api/src`、`apps/agent/src`、`apps/router/src` 并热重载，Vite 会热更新网页。若修改了依赖或 config，建议停止后重新执行 `make demo`。
+
+### A.7 网页操作与可观察内容
+
+1. 在左侧点击 **New test**。
+2. 搜索或选择一个 PinchBench case；页面会显示 task prompt、类别、评分类型和 timeout。
+3. 选择 Routing policy：从 Quality first 到 Lowest cost。它影响 Router 对质量和成本预测的权衡，不改变 MiniMax 的实际执行 profile。
+4. 点击 **Start agent run**。
+5. 在 run 页面依次查看每个 step：
+   - Router 选择的 label、最高概率；展开 **Router scorecard** 可看候选概率、预测质量和预估成本；
+   - `MiniMax is working…` 表示路由完成、正在等待真实模型 API 返回，不是页面卡死；
+   - `Agent reasoning`、最终 content 会按 Markdown 渲染；
+   - 若该步需要工具，左列是 tool call（名称和参数），右列是对应 tool result；
+   - 结束时的 Summary 汇总模型步数、Router 预估成本、涉及的预测标签和工具。
+6. 左侧 Run history 可重新打开历史 run；已结束 run 悬停后点击 `×` 并确认可删除。删除会移除该 run 的 event log 与隔离 workspace，不能恢复；运行中的 run 不可删除。
+
+### A.8 API 与 SSE 冒烟测试
+
+网页之外也可直接验证后端。先另开终端并保持 `make demo` 正在运行：
+
+```bash
+# 服务健康与 147 个 case
+curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8000/api/cases
+
+# 创建一个最小真实 run（会调用配置好的 MiniMax）
+curl -X POST http://127.0.0.1:8000/api/runs \
+  -H 'content-type: application/json' \
+  --data '{"case_id":"task_sanity","preference":2,"max_steps":2}'
+```
+
+从 POST 返回值复制 `run_id`，然后观察事件流：
+
+```bash
+curl -N http://127.0.0.1:8000/api/runs/<run_id>/events
+```
+
+正常顺序为：`run_started` → `router_decision` → `model_call_started` → `model_response` →（可选的 `tool_result` 与下一轮）→ `run_completed`。历史事件与 run summary 分别可通过：
+
+```bash
+curl http://127.0.0.1:8000/api/runs
+curl http://127.0.0.1:8000/api/runs/<run_id>
+curl http://127.0.0.1:8000/api/runs/<run_id>/events/history
+```
+
+若要删除一个已完成 run：
+
+```bash
+curl -X DELETE http://127.0.0.1:8000/api/runs/<run_id>
+```
+
+### A.9 单独测试 Router 或 Agent
+
+适合排查网页以外的问题：
+
+```bash
+# 只看 Router 的压缩上下文，不加载模型
+cd apps/router
+uv run pinch-router context --trace examples/trace.json
+
+# 本地 Router 预测；不会调用 MiniMax
+uv run pinch-router route --trace examples/trace.json
+
+# Router 预测并真实调用 MiniMax
+uv run pinch-router execute --trace examples/trace.json
+
+# 运行一个完整 LangGraph Agent case
+cd ../agent
+uv run pinch-agent run --case task_sanity
+```
+
+### A.10 常见问题
+
+| 现象 | 检查与处理 |
+| --- | --- |
+| `models.json` 不存在 / API key 报错 | 执行 A.4 的复制命令，确认填写的是 `execution_profiles.minimax_m3.api_key` |
+| 缺少 `.pth`、`.npz` 或 `chinese_mobilebert_base_f2` | 按 A.3 复制三项资产，确认路径在 `apps/router/var/assets/` |
+| 页面显示正在等待 MiniMax | 该步骤已开始真实 HTTP 调用；检查启动终端中的 API 日志、key、网络和 `timeout_seconds`。等待结束后会显示完成或失败状态 |
+| `Address already in use` | 已有 `make demo` / API / Vite 进程占用了 8000 或 5173；停止旧进程后重试 |
+| 打开 `:5173` 但没有 case | 确认 `curl http://127.0.0.1:8000/api/health` 返回 `{"status":"ok"}` |
+| Web 依赖安装失败 | 确认 Node.js 20+；删除 `apps/web/node_modules` 后重新执行 `npm install` |
+| LangGraph 的 `LangChainPendingDeprecationWarning` | 当前依赖的非阻断警告，不影响运行；API 出现 `Application startup complete` 表示已就绪 |
+
+### A.11 本地数据与安全
+
+| 路径 | 内容 | Git 状态 |
+| --- | --- | --- |
+| `apps/router/config/models.json` | MiniMax key、endpoint、执行 profile | 忽略 |
+| `apps/router/var/assets/` | Router checkpoint 和 encoder 权重 | 忽略 |
+| `apps/api/var/runs/` | 每次 run 的元数据、SSE event log、Agent workspace | 忽略 |
+| `apps/agent/var/` | 单独运行 Agent 时的 workspace | 忽略 |
+| `apps/web/node_modules/`、`apps/web/dist/` | 前端本地依赖与构建产物 | 忽略 |
+
+---
+
+## B. OpenClaw Eval 离线流水线
 
 本项目把一次 agent 任务拆成严格顺序的三阶段：**采集 Trace → 候选模型 inference → judge evaluate**。目标是得到供 router 训练使用的行级数据：
 

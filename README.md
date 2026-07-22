@@ -61,3 +61,13 @@ uv run scripts/package_release.py --run-id full-v1
 ```
 
 详见 [USER_MANUAL.md](USER_MANUAL.md) 的发布说明。
+# Pinch Router Lab
+
+Start the routed PinchBench demo (API + frontend) with one command:
+
+```bash
+make demo
+```
+
+It starts FastAPI and Vite, opens `http://127.0.0.1:5173`, and stops both
+services when you press `Ctrl+C`.

@@ -1,0 +1,30 @@
+[project]
+name = "pinch-router"
+version = "0.1.0"
+description = "Standalone, explainable model router for the PinchBench demo"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  # PyTorch 2.2's final Intel macOS wheel was built against NumPy 1.x.
+  "numpy>=1.26,<2",
+  "pydantic>=2.10",
+  # Newer PyTorch releases no longer publish Intel macOS wheels. The demo runs
+  # CPU inference and is intentionally compatible with the final x86_64 build.
+  "torch>=2.1,<2.3",
+  # 4.52+ refuses PyTorch <2.6 for legacy .bin loading; the final Intel macOS
+  # PyTorch wheel is 2.2, and the staged MobileBERT asset is pytorch_model.bin.
+  "transformers>=4.47,<4.52",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3"]
+
+[project.scripts]
+pinch-router = "pinch_router.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

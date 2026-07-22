@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {"role": "system", "content": "You are a local benchmark agent. Use tools when they are necessary."},
+    {"role": "user", "content": "Read the nginx log and summarize the five most frequent 5xx errors."}
+  ],
+  "tools": [
+    {"name": "read_file", "description": "Read a local text file", "succeeded": true},
+    {"name": "shell", "description": "Run a safe shell command"}
+  ],
+  "agent_state": {"step": "plan", "requires_tool": true, "task_family": "log_analysis"},
+  "actual_input_tokens": 920,
+  "candidate_labels": ["deepseek-v4-flash", "deepseek-v3.1", "qwen3-32b"],
+  "preference": 2
+}

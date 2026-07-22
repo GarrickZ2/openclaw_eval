@@ -1,0 +1,17 @@
+[project]
+name = "pinch-api"
+version = "0.1.0"
+description = "SSE backend for the routed PinchBench demo"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.115", "pinch-agent", "pinch-router", "uvicorn[standard]>=0.34"]
+
+[tool.uv.sources]
+pinch-agent = { path = "../agent", editable = true }
+pinch-router = { path = "../router", editable = true }
+
+[project.scripts]
+pinch-api = "pinch_api.app:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
