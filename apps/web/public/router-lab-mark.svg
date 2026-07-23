@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Router Lab">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="57" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#203a2a"/>
+      <stop offset="1" stop-color="#101b15"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="16" y1="12" x2="49" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d5f477"/>
+      <stop offset="1" stop-color="#65cdb7"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <rect x="1.25" y="1.25" width="61.5" height="61.5" rx="14.75" fill="none" stroke="#4d7757" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="17" fill="none" stroke="url(#signal)" stroke-width="3" opacity=".88"/>
+  <circle cx="32" cy="32" r="9" fill="#17251c" stroke="url(#signal)" stroke-width="3"/>
+  <path d="M32 10v7M32 47v7M10 32h7M47 32h7" stroke="#d5f477" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="3.5" fill="#d5f477"/>
+</svg>
